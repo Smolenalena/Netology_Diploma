@@ -6,13 +6,11 @@ class VkTools():
     def __init__(self, access_token):
        self.api = vk_api.VkApi(token=access_token)
 
-    def get_profile_info(self, user_id):
-
+    def get_user_info(self, user_id):
         info, = self.api.method('users.get',
                             {'user_id': user_id,
                             'fields': 'city,bdate,sex,relation,home_town' 
-                            }
-                            )
+                            })
         user_info = {'name': info['first_name'] + ' '+ info['last_name'],
                      'id':  info['id'],
                      'bdate': info['bdate'] if 'bdate' in info else None,
@@ -22,13 +20,12 @@ class VkTools():
                      }
         return user_info
     
-    def serch_users(self, params):
-
+    def find_users(self, params):
         sex = 1 if params['sex'] == 2 else 2
         city = params['city']
-        curent_year = datetime.now().year
+        current_year = datetime.now().year
         user_year = int(params['bdate'].split('.')[2])
-        age = curent_year - user_year
+        age = current_year - user_year
         age_from = age - 5
         age_to = age + 5
 
@@ -88,6 +85,6 @@ class VkTools():
 
 if __name__ == '__main__':
     bot = VkTools(access_token)
-    params = bot.get_profile_info(798289388)
-    users = bot.serch_users(params)
+    params = bot.get_user_info(798289388)
+    users = bot.find_users(params)
     print(bot.get_photos(users[2]['id']))

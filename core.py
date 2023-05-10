@@ -136,7 +136,7 @@ class VkTools():
         
         except (vk_api.exceptions.ApiError, IndexError):
             self.api.method('messages.send', {'user_id': user.id, "random_id":
-            get_random_id(), 'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            get_random_id(), 'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
 
         db.add_candidate(user.id, user_other['id'], description)
         
@@ -199,7 +199,7 @@ class VkTools():
         
         except (vk_api.exceptions.ApiError, IndexError):
             self.api.method('messages.send', {'user_id': user.id, "random_id":
-            get_random_id(), 'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            get_random_id(), 'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
 
     def next_viewed(self, user: User, number: int, message_id: int, db: Database):
         candidates = db.get_candidates(user.id)
@@ -226,4 +226,4 @@ class VkTools():
             self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': description, 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(current_candidate[0])})
         
         except (vk_api.exceptions.ApiError, IndexError):
-            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})

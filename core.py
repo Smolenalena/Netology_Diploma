@@ -21,6 +21,7 @@ class User():
         except:
             self.age = user_info['age']
         self.id = user_info['id']
+        self.offset = user_info['offset']
 
 class VkTools():
     def __init__(self, community_token, access_token) -> None:
@@ -51,17 +52,18 @@ class VkTools():
                 'bdate': info['bdate'],
                 'sex': info['sex'],
                 'city': info['city']['id'],
-                'first_name': info['first_name']}
+                'first_name': info['first_name'],
+                'offset': 0}
             
         except KeyError:
             return False
             
         return user_info
     
-    def get_search_info(self, user, offset):
+    def get_search_info(self, user: User):
         user_other = self.access_api.method('users.search',
-                                {'count': 1,
-                                 'offset': offset,
+                                {'count': 10,
+                                 'offset': user.offset,
                                  'age_from': user.age - 5,
                                  'age_to': user.age + 5,
                                  'sex': 1 if user.sex == 2 else 2,
@@ -70,7 +72,7 @@ class VkTools():
                                  'is_closed': False,
                                  'fields': 'bdate, city'
                                 }
-                            )['items'][0]
+                            )['items']
 
         return user_other
     
@@ -106,80 +108,84 @@ class VkTools():
         self.api.method('messages.send', {'user_id': user_id, "random_id": 
             get_random_id(), 'message': "Основное меню", "keyboard": keyboard_start.get_keyboard()})
         
-    def create_search(self, user, offset, db: Database):
+    def create_search(self, user: User, db: Database):
         number = 0
-        try:
-            user_other = self.get_search_info(user, offset)
 
-        except IndexError:
-            offset = 0
-            user_other = self.get_search_info(user, offset)
-        print('2')
-        try:
+        users = self.get_search_info(user)
+
+        if not users:
+            user.offset = 0
+            users = self.get_search_info(user)
+        
+        count = len(users)
+
+        id_received =  get_random_id()
+        current_description = ''
+
+        for received_user in users:
+
             try:
-                description = f"{user_other['first_name']} {user_other['last_name']}\nВозраст: {calculate_age(user_other['bdate'])} лет\nГород: {user_other['city']['title']}\nСсылка: vk.com/id{user_other['id']}"
+                try:
+                    description = f"{received_user['first_name']} {received_user['last_name']}\nВозраст: {calculate_age(received_user['bdate'])} лет\nГород: {received_user['city']['title']}\nСсылка: vk.com/id{received_user['id']}"
 
-            except KeyError:
-                description = f"{user_other['first_name']} {user_other['last_name']}\nВозраст: {calculate_age(user_other['bdate'])} лет\nСсылка: vk.com/id{user_other['id']}"
+                except KeyError:
+                    description = f"{received_user['first_name']} {received_user['last_name']}\nВозраст: {calculate_age(received_user['bdate'])} лет\nСсылка: vk.com/id{received_user['id']}"
 
-        except ValueError:
-            description = f"{user_other['first_name']} {user_other['last_name']}\nСсылка: vk.com/id{user_other['id']}"
+            except ValueError:
+                description = f"{received_user['first_name']} {received_user['last_name']}\nСсылка: vk.com/id{received_user['id']}"
+        
+            if users.index(received_user) == 0:
+                current_description = current_description + description
+
+            db.add_received(received_user['id'], id_received, description)
+
+        current_user = users[number]
 
         settings_start = dict(one_time=False, inline=True)
 
         keyboard_search = VkKeyboard(**settings_start)
-        keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "offset": offset, "number": number + 1})
+        keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "id_received": id_received, "number": number + 1, 'leng': count})
         
         try:
             self.api.method('messages.send', {'user_id': user.id, "random_id":
-            get_random_id(), 'message': description, 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(user_other['id'])})
+            get_random_id(), 'message': description, 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(received_user['id'])})
         
         except (vk_api.exceptions.ApiError, IndexError):
             self.api.method('messages.send', {'user_id': user.id, "random_id":
-            get_random_id(), 'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            get_random_id(), 'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
 
-        db.add_candidate(user.id, user_other['id'], description)
+        db.add_candidate(user.id, current_user['id'], description)
         
-        return offset + 10
+        return user.offset + count
 
-    def next_search(self, user, offset, number, message_id, db):
-        try:
-            user_other = self.get_search_info(user, offset + number)
-        
-        except IndexError:
-            number = 0
-            user_other = self.get_search_info(user, offset + number)
-        
-        try:
-            try:
-                description = f"{user_other['first_name']} {user_other['last_name']}\nВозраст: {calculate_age(user_other['bdate'])} лет\nГород: {user_other['city']['title']}\nСсылка: vk.com/id{user_other['id']}"
-        
-            except KeyError:
-                description = f"{user_other['first_name']} {user_other['last_name']}\nВозраст: {calculate_age(user_other['bdate'])} лет\nСсылка: vk.com/id{user_other['id']}"
-
-        except (ValueError, KeyError):
-            description = f"{user_other['first_name']} {user_other['last_name']}\nСсылка: vk.com/id{user_other['id']}"
+    def next_search(self, user, id_received, number, leng, message_id, db):
 
         settings_start = dict(one_time=False, inline=True)
         keyboard_search = VkKeyboard(**settings_start)
 
-        if number + 1 == 10:
-            keyboard_search.add_callback_button(label="Назад", payload={"type": "LEFT", "offset": offset, "number": number - 1})
+        print(number, leng)
+
+        if number + 1 == leng:
+            keyboard_search.add_callback_button(label="Назад", payload={"type": "LEFT", "id_received": id_received, "number": number - 1, 'leng': leng})
 
         elif number - 1 < 0:
-            keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "offset": offset, "number": number + 1})
+            keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "id_received": id_received, "number": number + 1, 'leng': leng})
 
         else:
-            keyboard_search.add_callback_button(label="Назад", payload={"type": "LEFT", "offset": offset, "number": number - 1})
-            keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "offset": offset, "number": number + 1})
+            keyboard_search.add_callback_button(label="Назад", payload={"type": "LEFT", "id_received": id_received, "number": number - 1, 'leng': leng})
+            keyboard_search.add_callback_button(label="Вперед", payload={"type": "RIGHT", "id_received": id_received, "number": number + 1, 'leng': leng})
+
+        received_user = db.get_received_user(number, id_received)
+
+        # self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': received_user[2], 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(received_user[1])})
 
         try:
-            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': description, 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(user_other['id'])})
+            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': received_user[2], 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(received_user[1])})
         
         except (vk_api.exceptions.ApiError, IndexError):
-            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нету изображения\n" + received_user[2], 'keyboard': keyboard_search.get_keyboard()})
 
-        db.add_candidate(user.id, user_other['id'], description)
+        db.add_candidate(user.id, received_user[1], received_user[2])
 
     def create_viewed(self, user, db: Database):
         number = 0
@@ -199,7 +205,7 @@ class VkTools():
         
         except (vk_api.exceptions.ApiError, IndexError):
             self.api.method('messages.send', {'user_id': user.id, "random_id":
-            get_random_id(), 'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            get_random_id(), 'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
 
     def next_viewed(self, user: User, number: int, message_id: int, db: Database):
         candidates = db.get_candidates(user.id)
@@ -226,4 +232,4 @@ class VkTools():
             self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': description, 'keyboard': keyboard_search.get_keyboard(), 'attachment': self.get_3_top_photos(current_candidate[0])})
         
         except (vk_api.exceptions.ApiError, IndexError):
-            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нет изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})
+            self.api.method('messages.edit', {'peer_id': user.id, 'conversation_message_id': message_id,'message': "Нету изображения\n" + description, 'keyboard': keyboard_search.get_keyboard()})

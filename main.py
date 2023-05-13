@@ -1,14 +1,10 @@
 from vk_api.bot_longpoll import VkBotEventType, VkBotLongPoll
 
 from db import Database
-import logging
 import re
 
 from config import community_token, access_token
 from core import VkTools, User, calculate_age
-
-
-logging.basicConfig(level=logging.INFO)
 
 db = Database('vkinder.db')
 
@@ -54,17 +50,17 @@ class Bot():
                     self.tools.write_main(user_id = event.message.from_id)
                 
                 elif command == 'начать поиск':
-                    print("Начался поиск")
-                    offset = db.get_offset(event.message.from_id)
                     user = User(db.get_user(event.message.from_id))
-                    print("1")
-                    new_offset = self.tools.create_search(user, offset, db)
-                    print("1")
+
+                    new_offset = self.tools.create_search(user, db)
                     db.set_offset(event.message.from_id, new_offset)
 
                 elif command == 'просмотренные':
                     user = User(db.get_user(event.message.from_id))
                     self.tools.create_viewed(user, db)
+
+                elif command == 'создать таблицы':
+                    db.create_tables()
 
                 elif words[0].lower() in ['женщина', 'мужчина'] and re.match("^\d+$", words[1]) is not None and (words[2].isalpha() or "-" in words[2]):
                     user_info = {}
@@ -84,16 +80,17 @@ class Bot():
                     self.tools.write_main(user_id = event.message.from_id)
                 
                 else:
-                    self.tools.write_msg(f"Неправильный ввод сообщения", event.message.from_id)
+                    self.tools.write_msg(f"начать поиск - получение след 60 людей\n", event.message.from_id)
 
             elif event.type == VkBotEventType.MESSAGE_EVENT:
                 print(event)
                 user = User(db.get_user(event.obj.peer_id))
                 
                 if event.object.payload.get('type') in ["RIGHT", "LEFT"] :
-                    offset = event.object.payload.get('offset')
                     number = event.object.payload.get('number')
-                    self.tools.next_search(user, offset, number, event.obj.conversation_message_id, db)
+                    id_received = event.object.payload.get('id_received')
+                    leng = event.object.payload.get('leng')
+                    self.tools.next_search(user, id_received, number, leng, event.obj.conversation_message_id, db)
 
                 if event.object.payload.get('type') in ["RIGHT_VIEWED", "LEFT_VIEWED"]:
                     number = event.object.payload.get('number')
@@ -101,11 +98,7 @@ class Bot():
                     
 def main():
     bot = Bot(community_token, access_token)
-    while True:
-        try:
-            bot.event_handler()
-        except:
-            continue
+    bot.event_handler()
 
 if __name__ == '__main__':
     main()

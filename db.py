@@ -25,7 +25,11 @@ class Database:
             
             except sqlite3.IntegrityError:
                 return False
-    
+
+    def add_received(self, user_id, received_id, description):
+        with self.connection:
+            self.cursor.execute('INSERT INTO received (id, id_user, description) VALUES (?, ?, ?)', (received_id, user_id, description))
+
     def get_user(self, user_id) -> dict:
         with self.connection:
             result = {}
@@ -35,8 +39,14 @@ class Database:
             result['sex'] = data[1]
             result['age'] = data[2]
             result['city'] = data[3]
+            result['offset'] = data[4]
 
             return result
+        
+    def get_received_user(self, number, received_id):
+        with self.connection:
+            self.cursor.execute('SELECT * FROM received WHERE id = ?', (received_id, ))
+            return self.cursor.fetchall()[number]
     
     def get_offset(self, user_id) -> int:
         with self.connection:
@@ -45,3 +55,28 @@ class Database:
     def set_offset(self, user_id, offset):
         with self.connection:
             self.cursor.execute('UPDATE users SET offset=? WHERE id=?', (offset, user_id))
+
+    def create_tables(self):
+        with self.connection:
+            self.cursor.execute('CREATE TABLE "users" (\
+                                "id"	INTEGER NOT NULL,\
+                                "sex"	INTEGER,\
+                                "age"	INTEGER,\
+                                "city"	INTEGER,\
+                                "offset"	INTEGER,\
+                                PRIMARY KEY("id")\
+                            )')
+            self.cursor.execute('CREATE TABLE "candidates" (\
+                                "id"	INTEGER,\
+                                "id_user"	INTEGER NOT NULL,\
+                                "id_candidate"	INTEGER NOT NULL,\
+                                "description"	TEXT,\
+                                FOREIGN KEY("id_user") REFERENCES "users"("id"),\
+                                PRIMARY KEY("id" AUTOINCREMENT)\
+                            )')
+            self.cursor.execute('CREATE TABLE "received" (\
+                                id bigint NOT NULL,\
+                                id_user bigint NOT NULL,\
+                                description text,\
+                                CONSTRAINT found_person_pkey PRIMARY KEY (id, id_user)\
+                                )')
